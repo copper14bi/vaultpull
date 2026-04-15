@@ -1,0 +1,26 @@
+# vaultpull configuration file
+# Copy to .vaultpull.yaml and fill in your values.
+# Sensitive values (vault_token) can also be set via environment variables.
+
+# Address of the Vault server
+vault_addr: "http://127.0.0.1:8200"
+
+# Vault token — prefer setting VAULT_TOKEN env var instead of storing here.
+# vault_token: "s.XXXXXXXXXXXX"
+
+# KV mount path (v2 KV engine mount)
+vault_mount: "secret"
+
+# List of secret paths to pull (relative to the mount)
+secret_paths:
+  - "myapp/database"
+  - "myapp/api-keys"
+
+# Destination .env file
+output_file: ".env"
+
+# Optional: rename Vault keys to custom env var names.
+# Vault key on the left, desired env var name on the right.
+env_mapping:
+  db_password: "DATABASE_PASSWORD"
+  api_key: "THIRD_PARTY_API_KEY"
