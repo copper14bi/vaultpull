@@ -1,71 +1,69 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
-	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 )
 
-// Config holds the application configuration loaded from file or environment.
+// Mapping defines a single Vault path -> env file relationship.
+type Mapping struct {
+	SecretPath string `yaml:"secret_path"`
+	EnvFile    string `yaml:"env_file"`
+	Overwrite  bool   `yaml:"overwrite"`
+}
+
+// Config holds all vaultpull configuration.
 type Config struct {
-	VaultAddr  string            `mapstructure:"vault_addr"`
-	VaultToken string            `mapstructure:"vault_token"`
-	VaultMount string            `mapstructure:"vault_mount"`
-	SecretPaths []string         `mapstructure:"secret_paths"`
-	OutputFile string            `mapstructure:"output_file"`
-	EnvMapping map[string]string `mapstructure:"env_mapping"`
+	VaultAddr string    `yaml:"vault_addr"`
+	Token     string    `yaml:"token"`
+	Mappings  []Mapping `yaml:"mappings"`
 }
 
-// Load reads configuration from the given file path, falling back to
-// environment variables prefixed with VAULTPULL_.
-func Load(cfgFile string) (*Config, error) {
-	v := viper.New()
-
-	v.SetDefault("vault_addr", "http://127.0.0.1:8200")
-	v.SetDefault("vault_mount", "secret")
-	v.SetDefault("output_file", ".env")
-
-	v.SetEnvPrefix("VAULTPULL")
-	v.AutomaticEnv()
-
-	if cfgFile != "" {
-		v.SetConfigFile(cfgFile)
-	} else {
-		v.SetConfigName(".vaultpull")
-		v.SetConfigType("yaml")
-		v.AddConfigPath(".")
-		v.AddConfigPath(os.Getenv("HOME"))
+// Load reads config from the given file path, applying defaults.
+func Load(path string) (*Config, error) {
+	cfg := &Config{
+		VaultAddr: "http://127.0.0.1:8200",
 	}
 
-	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, fmt.Errorf("reading config: %w", err)
+	if addr := os.Getenv("VAULT_ADDR"); addr != "" {
+		cfg.VaultAddr = addr
+	}
+	if token := os.Getenv("VAULT_TOKEN"); token != "" {
+		cfg.Token = token
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return cfg, nil
 		}
+		return nil, fmt.Errorf("read config: %w", err)
 	}
 
-	var cfg Config
-	if err := v.Unmarshal(&cfg); err != nil {
-		return nil, fmt.Errorf("unmarshalling config: %w", err)
+	if err := yaml.Unmarshal(data, cfg); err != nil {
+		return nil, fmt.Errorf("parse config: %w", err)
 	}
-
-	if cfg.VaultToken == "" {
-		cfg.VaultToken = os.Getenv("VAULT_TOKEN")
-	}
-
-	return &cfg, nil
+	return cfg, nil
 }
 
-// Validate returns an error if required fields are missing.
+// Validate checks that the config has required fields.
 func (c *Config) Validate() error {
-	if c.VaultAddr == "" {
-		return fmt.Errorf("vault_addr is required")
+	if c.Token == "" {
+		return errors.New("vault token is required (set token in config or VAULT_TOKEN env var)")
 	}
-	if c.VaultToken == "" {
-		return fmt.Errorf("vault_token is required (set VAULT_TOKEN or vault_token in config)")
+	if len(c.Mappings) == 0 {
+		return errors.New("at least one mapping is required")
 	}
-	if len(c.SecretPaths) == 0 {
-		return fmt.Errorf("at least one secret_path is required")
+	for i, m := range c.Mappings {
+		if m.SecretPath == "" {
+			return fmt.Errorf("mapping[%d]: secret_path is required", i)
+		}
+		if m.EnvFile == "" {
+			return fmt.Errorf("mapping[%d]: env_file is required", i)
+		}
 	}
 	return nil
 }
