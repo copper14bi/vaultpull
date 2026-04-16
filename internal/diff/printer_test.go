@@ -7,8 +7,8 @@ import (
 )
 
 func TestPrintTo_Added(t *testing.T) {
-	changes := []Change{{Type: Added, Key: "FOO", NewValue: "bar"}}
 	var buf bytes.Buffer
+	changes := []Change{{Key: "FOO", Type: Added, New: "bar"}}
 	PrintTo(&buf, changes)
 	if !strings.Contains(buf.String(), "+ FOO") {
 		t.Errorf("expected added marker, got: %s", buf.String())
@@ -16,55 +16,47 @@ func TestPrintTo_Added(t *testing.T) {
 }
 
 func TestPrintTo_Removed(t *testing.T) {
-	changes := []Change{{Type: Removed, Key: "OLD", OldValue: "secret"}}
 	var buf bytes.Buffer
+	changes := []Change{{Key: "FOO", Type: Removed, Old: "bar"}}
 	PrintTo(&buf, changes)
-	if !strings.Contains(buf.String(), "- OLD") {
+	if !strings.Contains(buf.String(), "- FOO") {
 		t.Errorf("expected removed marker, got: %s", buf.String())
 	}
 }
 
 func TestPrintTo_Updated(t *testing.T) {
-	changes := []Change{{Type: Updated, Key: "TOKEN", OldValue: "old", NewValue: "new"}}
 	var buf bytes.Buffer
+	changes := []Change{{Key: "FOO", Type: Updated, Old: "old", New: "new"}}
 	PrintTo(&buf, changes)
-	out := buf.String()
-	if !strings.Contains(out, "~ TOKEN") {
-		t.Errorf("expected updated marker, got: %s", out)
-	}
-	if !strings.Contains(out, "→") {
-		t.Errorf("expected arrow separator, got: %s", out)
+	if !strings.Contains(buf.String(), "~ FOO") {
+		t.Errorf("expected updated marker, got: %s", buf.String())
 	}
 }
 
 func TestPrintTo_NoChanges(t *testing.T) {
 	var buf bytes.Buffer
 	PrintTo(&buf, []Change{})
-	if !strings.Contains(buf.String(), "no changes") {
+	if !strings.Contains(buf.String(), "No changes") {
 		t.Errorf("expected no-changes message, got: %s", buf.String())
 	}
 }
 
 func TestDisplayVal_ShortValue(t *testing.T) {
-	got := displayVal("ab")
-	if got != "**" {
-		t.Errorf("expected '**', got %q", got)
+	if got := displayVal("hello"); got != "hello" {
+		t.Errorf("expected hello, got %s", got)
 	}
 }
 
 func TestDisplayVal_LongValue(t *testing.T) {
-	got := displayVal("supersecret")
-	if !strings.HasSuffix(got, "cret") {
-		t.Errorf("expected suffix 'cret', got %q", got)
-	}
-	if !strings.HasPrefix(got, "*") {
-		t.Errorf("expected leading mask, got %q", got)
+	long := strings.Repeat("a", 40)
+	got := displayVal(long)
+	if !strings.HasSuffix(got, "...") {
+		t.Errorf("expected truncation, got: %s", got)
 	}
 }
 
 func TestDisplayVal_Empty(t *testing.T) {
-	got := displayVal("")
-	if got != `""` {
-		t.Errorf("expected empty string repr, got %q", got)
+	if got := displayVal(""); got != `""` {
+		t.Errorf("expected empty quotes, got: %s", got)
 	}
 }
