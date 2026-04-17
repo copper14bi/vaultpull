@@ -33,12 +33,12 @@ func (c *Confirmer) Ask(question string, defaultYes bool) (bool, error) {
 	}
 	fmt.Fprintf(c.out, "%s [%s]: ", question, hint)
 
-	scanner := bufio.NewScanner(c.in)
+	anner(c.in)
 	if !scanner.Scan() {
 		if err := scanner.Err(); err != nil {
 			return false, fmt.Errorf("reading input: %w", err)
 		}
-		// EOF — treat as default
+	
 		return defaultYes, nil
 	}
 
@@ -53,6 +53,19 @@ func (c *Confirmer) Ask(question string, defaultYes bool) (bool, error) {
 	default:
 		return false, fmt.Errorf("unrecognised answer %q: expected y/yes or n/no", answer)
 	}
+}
+
+// AskWithRetry is like Ask but re-prompts up to maxAttempts times on
+// unrecognised input, returning an error only if all attempts are exhausted.
+func (c *Confirmer) AskWithRetry(question string, defaultYes bool, maxAttempts int) (bool, error) {
+	for i := 0; i < maxAttempts; i++ {
+		ok, err := c.Ask(question, defaultYes)
+		if err == nil {
+			return ok, nil
+		}
+		fmt.Fprintf(c.out, "Invalid input: %s. Please try again.\n", err)
+	}
+	return false, fmt.Errorf("no valid answer provided after %d attempt(s)", maxAttempts)
 }
 
 // MustAsk is like Ask but panics on error.
