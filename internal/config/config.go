@@ -1,69 +1,78 @@
+// Package config loads and validates vaultpull configuration.
 package config
 
 import (
 	"errors"
-	"fmt"
 	"os"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
-// Mapping defines a single Vault path -> env file relationship.
-type Mapping struct {
-	SecretPath string `yaml:"secret_path"`
-	EnvFile    string `yaml:"env_file"`
-	Overwrite  bool   `yaml:"overwrite"`
-}
-
-// Config holds all vaultpull configuration.
+// Config holds all runtime configuration for vaultpull.
 type Config struct {
-	VaultAddr string    `yaml:"vault_addr"`
-	Token     string    `yaml:"token"`
-	Mappings  []Mapping `yaml:"mappings"`
+	VaultAddr    string        `yaml:"vault_addr"`
+	VaultToken   string        `yaml:"vault_token"`
+	SecretPaths  []string      `yaml:"secret_paths"`
+	OutputFile   string        `yaml:"output_file"`
+	MergeMode    string        `yaml:"merge_mode"`    // overwrite | keep
+	RotationInterval string   `yaml:"rotation_interval"` // e.g. "24h", "7d"
+	MaxBackups   int           `yaml:"max_backups"`
+	AuditLog     string        `yaml:"audit_log"`
+	Timeout      time.Duration `yaml:"timeout"`
+	Filter       FilterConfig  `yaml:"filter"`
 }
 
-// Load reads config from the given file path, applying defaults.
-func Load(path string) (*Config, error) {
-	cfg := &Config{
-		VaultAddr: "http://127.0.0.1:8200",
-	}
+// FilterConfig holds key inclusion/exclusion patterns.
+type FilterConfig struct {
+	Include []string `yaml:"include"`
+	Exclude []string `yaml:"exclude"`
+}
 
-	if addr := os.Getenv("VAULT_ADDR"); addr != "" {
-		cfg.VaultAddr = addr
-	}
-	if token := os.Getenv("VAULT_TOKEN"); token != "" {
-		cfg.Token = token
-	}
+// Load reads config from a YAML file, applying defaults.
+func Load(path string) (*Config, error) {
+	cfg := defaults()
 
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return cfg, nil
 		}
-		return nil, fmt.Errorf("read config: %w", err)
+		return nil, err
 	}
 
 	if err := yaml.Unmarshal(data, cfg); err != nil {
-		return nil, fmt.Errorf("parse config: %w", err)
+		return nil, err
 	}
+
+	if v := os.Getenv("VAULT_ADDR"); v != "" {
+		cfg.VaultAddr = v
+	}
+	if v := os.Getenv("VAULT_TOKEN"); v != "" {
+		cfg.VaultToken = v
+	}
+
 	return cfg, nil
 }
 
-// Validate checks that the config has required fields.
+// Validate returns an error if required fields are missing.
 func (c *Config) Validate() error {
-	if c.Token == "" {
-		return errors.New("vault token is required (set token in config or VAULT_TOKEN env var)")
+	if c.VaultToken == "" {
+		return errors.New("vault_token is required")
 	}
-	if len(c.Mappings) == 0 {
-		return errors.New("at least one mapping is required")
-	}
-	for i, m := range c.Mappings {
-		if m.SecretPath == "" {
-			return fmt.Errorf("mapping[%d]: secret_path is required", i)
-		}
-		if m.EnvFile == "" {
-			return fmt.Errorf("mapping[%d]: env_file is required", i)
-		}
+	if len(c.SecretPaths) == 0 {
+		return errors.New("at least one secret_path is required")
 	}
 	return nil
+}
+
+func defaults() *Config {
+	return &Config{
+		VaultAddr:        "http://127.0.0.1:8200",
+		OutputFile:       ".env",
+		MergeMode:        "overwrite",
+		MaxBackups:       5,
+		RotationInterval: "24h",
+		Timeout:          10 * time.Second,
+	}
 }
