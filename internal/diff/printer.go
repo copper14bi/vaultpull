@@ -7,7 +7,13 @@ import (
 	"strings"
 )
 
-const maxDisplayLen = 32
+const (
+	 colorReset  = "\033[0m"
+	colorGreen  = "\033[32m"
+	colorRed    = "\033[31m"
+	colorYellow = "\033[33m"
+	maxValLen   = 32
+)
 
 // Print writes a human-readable diff summary to stdout.
 func Print(changes []Change) {
@@ -24,29 +30,34 @@ func PrintTo(w io.Writer, changes []Change) {
 	for _, c := range changes {
 		switch c.Type {
 		case Added:
-			fmt.Fprintf(w, "  + %s = %s\n", c.Key, displayVal(c.New))
+			fmt.Fprintf(w, "%s+ %s = %s%s\n", colorGreen, c.Key, displayVal(c.NewValue), colorReset)
 		case Removed:
-			fmt.Fprintf(w, "  - %s = %s\n", c.Key, displayVal(c.Old))
+			fmt.Fprintf(w, "%s- %s = %s%s\n", colorRed, c.Key, displayVal(c.OldValue), colorReset)
 		case Updated:
-			fmt.Fprintf(w, "  ~ %s: %s -> %s\n", c.Key, displayVal(c.Old), displayVal(c.New))
-		case Unchanged:
-			fmt.Fprintf(w, "    %s (unchanged)\n", c.Key)
+			fmt.Fprintf(w, "%s~ %s: %s → %s%s\n", colorYellow, c.Key, displayVal(c.OldValue), displayVal(c.NewValue), colorReset)
 		}
 	}
+
+	added, removed, updated := 0, 0, 0
+	for _, c := range changes {
+		switch c.Type {
+		case Added:
+			added++
+		case Removed:
+			removed++
+		case Updated:
+			updated++
+		}
+	}
+	fmt.Fprintf(w, "\nSummary: %d added, %d removed, %d updated\n", added, removed, updated)
 }
 
-// displayVal truncates long values and masks secrets heuristically.
 func displayVal(v string) string {
 	if len(v) == 0 {
 		return `""`
 	}
-	if len(v) > maxDisplayLen {
-		return v[:maxDisplayLen] + "..."
-	}
-	// Mask values that look like tokens or passwords.
-	lower := strings.ToLower(v)
-	if strings.ContainsAny(lower, "!@#$%") || len(v) >= 20 {
-		return strings.Repeat("*", min(len(v), 8))
+	if len(v) > maxValLen {
+		return v[:maxValLen] + "..."
 	}
 	return v
 }
@@ -57,3 +68,6 @@ func min(a, b int) int {
 	}
 	return b
 }
+
+// ensure strings import used
+var _ = strings.Contains
