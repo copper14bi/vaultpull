@@ -59,6 +59,30 @@ func TestWrite_CreatesBackup(t *testing.T) {
 	}
 }
 
+func TestWrite_NoBackupDirSkipsBackup(t *testing.T) {
+	dir := t.TempDir()
+	outPath := filepath.Join(dir, ".env")
+
+	// Pre-create the .env file; with no backupDir set, no backup should occur.
+	if err := os.WriteFile(outPath, []byte("OLD=value\n"), 0600); err != nil {
+		t.Fatalf("setup failed: %v", err)
+	}
+
+	w := NewWriter(outPath, "")
+	if err := w.Write(map[string]string{"NEW": "value"}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Confirm the output file was overwritten with the new content.
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("failed to read output file: %v", err)
+	}
+	if !strings.Contains(string(data), "NEW=value") {
+		t.Errorf("expected NEW=value in output, got:\n%s", string(data))
+	}
+}
+
 func TestQuoteValue_NoQuotesNeeded(t *testing.T) {
 	if got := quoteValue("simple"); got != "simple" {
 		t.Errorf("expected simple, got %s", got)
