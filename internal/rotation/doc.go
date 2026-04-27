@@ -8,7 +8,8 @@
 //
 //  2. Rotation scheduling via Policy — determines whether enough time has
 //     elapsed since the last rotation based on a configurable interval, and
-//     exposes helpers for parsing human-readable duration strings (e.g. "7d").
+//     exposes helpers for parsing human-readable duration strings (e.g. "7d",
+//     "24h", "30m").
 //
 // Typical usage:
 //
@@ -22,4 +23,12 @@
 //	        log.Fatal(err)
 //	    }
 //	}
+//
+// Backup files are named using the source file's base name with a UTC
+// timestamp suffix in the format "20060102T150405Z", for example:
+//
+//	.backups/.env.20240315T083000Z
+//
+// When the number of existing backups exceeds the configured maximum, the
+// oldest backups are removed first, keeping only the most recent N files.
 package rotation
